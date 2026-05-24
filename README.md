@@ -53,7 +53,7 @@ python3 congress_stock_tracker.py stats
 python3 congress_stock_tracker.py app
 
 # Ask the local prompt agent
-python3 congress_stock_tracker.py ask show Nancy Pelosi buys in 2024
+python3 congress_stock_tracker.py ask show Sample Member A buys in 2024
 ```
 
 Running the script with no subcommand also launches the interactive app when Rich is available:
@@ -73,8 +73,8 @@ python3 congress_stock_tracker.py --plain stats
 ### View a Member Report
 
 ```bash
-python3 congress_stock_tracker.py report --member "Nancy Pelosi"
-python3 congress_stock_tracker.py report --member "Nancy Pelosi" --format json
+python3 congress_stock_tracker.py report --member "Sample Member A"
+python3 congress_stock_tracker.py report --member "Sample Member A" --format json
 python3 congress_stock_tracker.py report --all --year 2024
 ```
 
@@ -85,7 +85,7 @@ python3 congress_stock_tracker.py report --all --year 2024
 python3 congress_stock_tracker.py search -q NVDA
 
 # Filter by member, type, and year
-python3 congress_stock_tracker.py trades --member "Nancy Pelosi" --type buy --year 2024
+python3 congress_stock_tracker.py trades --member "Sample Member A" --type buy --year 2024
 
 # Filter by stock and paginate
 python3 congress_stock_tracker.py trades --stock AAPL --limit 25 --offset 25
@@ -101,7 +101,7 @@ python3 congress_stock_tracker.py search --from "1 January 2024" --to "31 Decemb
 python3 congress_stock_tracker.py export
 
 # Export JSON with filters
-python3 congress_stock_tracker.py export --format json --output pelosi_2024 --member "Nancy Pelosi" --year 2024
+python3 congress_stock_tracker.py export --format json --output member_a_2024 --member "Sample Member A" --year 2024
 
 # Export selected fields only
 python3 congress_stock_tracker.py export --fields member_name,symbol,trade_type,trade_date,amount_range
@@ -117,7 +117,7 @@ python3 congress_stock_tracker.py update
 python3 congress_stock_tracker.py update --refresh --pages 2
 
 # Update one or more members
-python3 congress_stock_tracker.py update --member "Ro Khanna" --member "Nancy Pelosi"
+python3 congress_stock_tracker.py update --member "Sample Member B" --member "Sample Member A"
 
 # Try all configured sources
 python3 congress_stock_tracker.py update --source all
@@ -197,16 +197,16 @@ Choose `9` in the menu to send a prompt to the local agent. The agent prints the
 Example prompt:
 
 ```text
-Ask the agent [show Nancy Pelosi buys in 2024]: fetch latest trades for Ro Khanna
+Ask the agent [show Sample Member A buys in 2024]: fetch latest trades for Sample Member B
 ```
 
 Example plan:
 
 ```text
 Agent plan
-Prompt: fetch latest trades for Ro Khanna
+Prompt: fetch latest trades for Sample Member B
 Action: update
-Command: update --source capitolexposed --member "Ro Khanna"
+Command: update --source capitolexposed --member "Sample Member B"
 ```
 
 ### `init`
@@ -230,8 +230,8 @@ Example output:
 --------------------------------------------------------------------------------------------------------------
 Member                         Party        Chamber  Buys   Sells  Holds  Total  Stocks
 --------------------------------------------------------------------------------------------------------------
-Nancy Pelosi                   Democratic   House    2      1      0      3      2
-Kevin McCarthy                 Republican   House    2      1      0      3      2
+Sample Member A                   Democratic   House    2      1      0      3      2
+Sample Member C                 Republican   House    2      1      0      3      2
 ```
 
 ### `stats`
@@ -253,9 +253,9 @@ Example output:
 --------------------------------------------------------------------------------------------------------------
 Member                         Party        Chamber  Buys   Sells  Holds  Total  Stocks
 --------------------------------------------------------------------------------------------------------------
-Nancy Pelosi                   Democratic   House    10     6      0      16     7
-Mitch McConnell                Republican   Senate   1      0      1      2      2
-Kevin McCarthy                 Republican   House    2      1      0      3      2
+Sample Member A                   Democratic   House    10     6      0      16     7
+Sample Member D                Republican   Senate   1      0      1      2      2
+Sample Member C                 Republican   House    2      1      0      3      2
 --------------------------------------------------------------------------------------------------------------
 YEAR TOTAL                                           17     8      3      28
 ```
@@ -265,14 +265,14 @@ YEAR TOTAL                                           17     8      3      28
 Prints a full member dashboard with yearly totals and transaction rows:
 
 ```bash
-python3 congress_stock_tracker.py --plain report --member "Nancy Pelosi"
+python3 congress_stock_tracker.py --plain report --member "Sample Member A"
 ```
 
 Example output:
 
 ```text
 ======================================================================
-  NANCY PELOSI - DEMOCRATIC - HOUSE (CA)
+  SAMPLE MEMBER A - DEMOCRATIC - HOUSE (CA)
 ======================================================================
 
 📅 Financial Year 2026
@@ -288,7 +288,7 @@ Example output:
 JSON output is also available:
 
 ```bash
-python3 congress_stock_tracker.py --plain report --member "Nancy Pelosi" --format json
+python3 congress_stock_tracker.py --plain report --member "Sample Member A" --format json
 ```
 
 Example output:
@@ -297,7 +297,7 @@ Example output:
 {
   "member": {
     "member_id": "P000197",
-    "name": "Nancy Pelosi",
+    "name": "Sample Member A",
     "party": "Democratic",
     "chamber": "House",
     "state": "CA"
@@ -318,18 +318,18 @@ Example output:
 Lists matching trades with pagination:
 
 ```bash
-python3 congress_stock_tracker.py --plain trades --member "Nancy Pelosi" --limit 3
+python3 congress_stock_tracker.py --plain trades --member "Sample Member A" --limit 3
 ```
 
 Example output:
 
 ```text
-Trades for Nancy Pelosi (3 shown)
+Trades for Sample Member A (3 shown)
 Date               Symbol   Company                Type   Amount           Member
 ----------------------------------------------------------------------------------------------------------
-16 January 2026    GOOGL    Alphabet Inc. - Clas   BUY    $500,001-$1,000,000 Nancy Pelosi
-16 January 2026    AMZN     Amazon.com, Inc. - C   BUY    $500,001-$1,000,000 Nancy Pelosi
-16 January 2026    NVDA     NVIDIA Corporation -   BUY    $250,001-$500,000 Nancy Pelosi
+16 January 2026    GOOGL    Alphabet Inc. - Clas   BUY    $500,001-$1,000,000 Sample Member A
+16 January 2026    AMZN     Amazon.com, Inc. - C   BUY    $500,001-$1,000,000 Sample Member A
+16 January 2026    NVDA     NVIDIA Corporation -   BUY    $250,001-$500,000 Sample Member A
 
 Showing 3 of 40 (use --offset to paginate)
 ```
@@ -348,9 +348,9 @@ Example output:
 Search results (3 shown)
 Date               Symbol   Company                Type   Amount           Member
 ----------------------------------------------------------------------------------------------------------
-24 February 2026   NVDA     Nvidia Corporation     BUY    $1,001-$15,000   Ro Khanna
-16 January 2026    NVDA     NVIDIA Corporation -   BUY    $250,001-$500,000 Nancy Pelosi
-30 December 2025   NVDA     NVIDIA Corporation -   BUY    $100,001-$250,000 Nancy Pelosi
+24 February 2026   NVDA     Nvidia Corporation     BUY    $1,001-$15,000   Sample Member B
+16 January 2026    NVDA     NVIDIA Corporation -   BUY    $250,001-$500,000 Sample Member A
+30 December 2025   NVDA     NVIDIA Corporation -   BUY    $100,001-$250,000 Sample Member A
 
 Showing 3 of 10 (use --offset to paginate)
 ```
@@ -360,21 +360,21 @@ Showing 3 of 10 (use --offset to paginate)
 Routes a natural-language prompt to one of the existing app commands:
 
 ```bash
-python3 congress_stock_tracker.py --plain ask show Nancy Pelosi buys in 2024 limit 2
+python3 congress_stock_tracker.py --plain ask show Sample Member A buys in 2024 limit 2
 ```
 
 Example output:
 
 ```text
 Agent action: trades
-Routes to: trades --member "Nancy Pelosi" --year 2024 --type buy --limit 2
-Summary: Show member trades · member=Nancy Pelosi · year=2024 · trade type=buy
+Routes to: trades --member "Sample Member A" --year 2024 --type buy --limit 2
+Summary: Show member trades · member=Sample Member A · year=2024 · trade type=buy
 
-Show member trades · member=Nancy Pelosi · year=2024 · trade type=buy (2 shown)
+Show member trades · member=Sample Member A · year=2024 · trade type=buy (2 shown)
 Date               Symbol   Company                Type   Amount           Member
 ----------------------------------------------------------------------------------------------------------
-20 December 2024   PANW     Palo Alto Networks,    BUY    $1,000,001-$5,000,000 Nancy Pelosi
-20 December 2024   NVDA     NVIDIA Corporation -   BUY    $500,001-$1,000,000 Nancy Pelosi
+20 December 2024   PANW     Palo Alto Networks,    BUY    $1,000,001-$5,000,000 Sample Member A
+20 December 2024   NVDA     NVIDIA Corporation -   BUY    $500,001-$1,000,000 Sample Member A
 
 Showing 2 of 10
 ```
@@ -382,11 +382,11 @@ Showing 2 of 10
 Prompt examples:
 
 ```text
-fetch latest trades for Ro Khanna
-show Nancy Pelosi buys in 2024
+fetch latest trades for Sample Member B
+show Sample Member A buys in 2024
 search NVDA trades limit 10
 stats for 2024
-export Nancy Pelosi trades as json
+export Sample Member A trades as json
 sync members
 show analysis
 ```
@@ -396,21 +396,21 @@ show analysis
 Writes filtered data to CSV or JSON:
 
 ```bash
-python3 congress_stock_tracker.py export --format csv --output pelosi_trades --member "Nancy Pelosi"
+python3 congress_stock_tracker.py export --format csv --output member_a_trades --member "Sample Member A"
 ```
 
 Example output:
 
 ```text
-✓ Exported 40 trades to pelosi_trades.csv
+✓ Exported 40 trades to member_a_trades.csv
 ```
 
 Example CSV rows:
 
 ```csv
 member_name,symbol,trade_type,trade_date,amount_range
-Nancy Pelosi,GOOGL,buy,16 January 2026,"$500,001-$1,000,000"
-Nancy Pelosi,AMZN,buy,16 January 2026,"$500,001-$1,000,000"
+Sample Member A,GOOGL,buy,16 January 2026,"$500,001-$1,000,000"
+Sample Member A,AMZN,buy,16 January 2026,"$500,001-$1,000,000"
 ```
 
 ### `update`
@@ -418,7 +418,7 @@ Nancy Pelosi,AMZN,buy,16 January 2026,"$500,001-$1,000,000"
 Fetches live trade data from configured public sources:
 
 ```bash
-python3 congress_stock_tracker.py update --source capitolexposed --member "Nancy Pelosi" --pages 1
+python3 congress_stock_tracker.py update --source capitolexposed --member "Sample Member A" --pages 1
 ```
 
 Example output:
@@ -459,8 +459,8 @@ Example output:
 
 📊 TOP TRADERS (by transaction count)
 --------------------------------------------------------------------------------
-1. Ro Khanna                      159 trades (126 buy, 0 sell, 33 hold)
-2. Nancy Pelosi                    19 trades (11 buy, 8 sell, 0 hold)
+1. Sample Member B                      159 trades (126 buy, 0 sell, 33 hold)
+2. Sample Member A                    19 trades (11 buy, 8 sell, 0 hold)
 
 📈 MOST TRADED STOCKS
 --------------------------------------------------------------------------------
@@ -522,11 +522,11 @@ ORDER BY trade_date DESC;
 
 `python3 congress_stock_tracker.py init` loads demonstration records for:
 
-- Nancy Pelosi
-- Kevin McCarthy
-- Chuck Schumer
-- Mitch McConnell
-- Alexandria Ocasio-Cortez
+- Sample Member A
+- Sample Member C
+- Sample Member E
+- Sample Member D
+- Sample Member F
 
 The sample set includes 12 2024 transactions across companies such as Microsoft, Apple, Tesla, Nvidia, JPMorgan, Google, Coca Cola, ExxonMobil, and ETFs.
 
@@ -560,7 +560,7 @@ from congress_stock_tracker import CongressStockTracker, CongressMember, StockTr
 tracker = CongressStockTracker()
 
 member = CongressMember(
-    name="John Smith",
+    name="Sample Member",
     party="Democratic",
     chamber="Senate",
     state="NY",
@@ -570,7 +570,7 @@ tracker.add_member(member)
 
 trade = StockTrade(
     member_id="S000123",
-    member_name="John Smith",
+    member_name="Sample Member",
     symbol="MSFT",
     company="Microsoft",
     trade_date="2024-03-15",
