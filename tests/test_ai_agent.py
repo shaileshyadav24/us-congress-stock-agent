@@ -47,6 +47,29 @@ class TestCongressPromptAgent(unittest.TestCase):
         self.assertEqual(plan.args["pages"], 2)
         self.assertEqual(plan.args["sources"], ["capitolexposed"])
 
+    def test_plan_resync_stock(self):
+        plan = self.agent.plan("confirm clear and resync stock nvda pages 1")
+
+        self.assertEqual(plan.action, "resync")
+        self.assertEqual(plan.args["stock"], "NVDA")
+        self.assertFalse(plan.args["all_trades"])
+        self.assertEqual(plan.args["pages"], 1)
+        self.assertTrue(plan.args["confirmed"])
+
+    def test_plan_resync_all(self):
+        plan = self.agent.plan("resync all data")
+
+        self.assertEqual(plan.action, "resync")
+        self.assertTrue(plan.args["all_trades"])
+        self.assertFalse(plan.args["confirmed"])
+        self.assertEqual(plan.args["sources"], ["capitolexposed"])
+
+    def test_execute_resync_requires_confirmation(self):
+        plan = self.agent.plan("resync all data")
+
+        with self.assertRaises(ValueError):
+            execute_agent_plan(plan, self.tracker)
+
     def test_execute_trades_plan(self):
         plan = self.agent.plan("show Nancy Pelosi buys in 2024")
         kind, result = execute_agent_plan(plan, self.tracker)
