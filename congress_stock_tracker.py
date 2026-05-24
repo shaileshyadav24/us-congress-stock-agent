@@ -867,6 +867,9 @@ def main():
     search_parser.add_argument("--limit", type=int, default=50)
     search_parser.add_argument("--offset", type=int, default=0)
 
+    ask_parser = subparsers.add_parser("ask", help="Ask the local prompt agent")
+    ask_parser.add_argument("prompt", nargs="*", help="Prompt to route to an existing command")
+
     args = parser.parse_args()
     logging.basicConfig(
         level=logging.DEBUG if getattr(args, "verbose", False) else logging.INFO,
@@ -1074,6 +1077,84 @@ def main():
             tracker.print_trades_table(trades, title="Search results")
             if total > args.limit:
                 print(f"\nShowing {len(trades)} of {total} (use --offset to paginate)")
+
+    elif args.command == "ask":
+        from ai_agent import CongressPromptAgent, execute_agent_plan
+
+        prompt = " ".join(args.prompt).strip()
+        if not prompt:
+            print("Please provide a prompt. Examples:")
+            for example in CongressPromptAgent(tracker).prompt_examples():
+                print(f"  - {example}")
+            return
+
+        agent = CongressPromptAgent(tracker)
+        plan = agent.plan(prompt)
+        print(f"Agent action: {plan.action}")
+        print(f"Routes to: {plan.command}")
+        print(f"Summary: {plan.summary}")
+
+        if plan.action == "help":
+            print("\nExamples:")
+            for example in agent.prompt_examples():
+                print(f"  - {example}")
+            return
+
+        kind, result = execute_agent_plan(plan, tracker)
+
+        if kind == "stats":
+            if _use_graphical(args):
+                from cli_display import GraphicalDisplay
+
+                GraphicalDisplay().stats_table(result[:50], year=plan.args.get("year"))
+            else:
+                tracker.print_yearly_summary(
+                    year=plan.args.get("year"),
+                    party=plan.args.get("party"),
+                    chamber=plan.args.get("chamber"),
+                    sort_by="total_trades",
+                )
+        elif kind == "report":
+            member = plan.args.get("member")
+            if not member:
+                print("Please include a member name, for example: ask report for Nancy Pelosi")
+                raise SystemExit(1)
+            if _use_graphical(args):
+                from cli_display import GraphicalDisplay
+
+                if not GraphicalDisplay().member_dashboard(tracker, member):
+                    raise SystemExit(1)
+            else:
+                tracker.print_member_report(member)
+        elif kind in {"trades", "search"}:
+            rows, total = result
+            if _use_graphical(args):
+                from cli_display import GraphicalDisplay
+
+                GraphicalDisplay().trades_table(rows, title=plan.summary, total=total)
+            else:
+                tracker.print_trades_table(rows, title=plan.summary)
+                if total > len(rows):
+                    print(f"\nShowing {len(rows)} of {total}")
+        elif kind == "export":
+            pass
+        elif kind == "analysis":
+            from analysis_tools import AnalysisTools
+
+            AnalysisTools(tracker.db_path).print_analysis_report()
+        elif kind == "sync":
+            print(
+                f"✓ Member sync complete — roster: {result['total_roster']}, "
+                f"added: {result['added']}, updated: {result['updated']}, skipped: {result['skipped']}"
+            )
+        elif kind == "update":
+            print(
+                f"✓ Update complete — members: +{result.get('members_added', 0)} new, "
+                f"{result.get('members_updated', 0)} updated, "
+                f"{result.get('members_auto_added', 0)} auto-added from trades | "
+                f"trades: fetched {result['fetched']}, imported {result['imported']}, "
+                f"skipped {result['skipped']}, errors {result['errors']}"
+            )
 
 if __name__ == '__main__':
     main()

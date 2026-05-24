@@ -13,6 +13,7 @@ The tracker stores trades in SQLite, supports both sample and live data imports,
 - Search trades by member, company, ticker, type, date range, and year.
 - Generate member reports, yearly statistics, CSV exports, and JSON exports.
 - Use an interactive terminal app with Rich tables and plotext charts.
+- Ask the local prompt agent to route natural-language requests to existing commands.
 - Run focused unit tests for data normalization, API parsing, roster sync, and member import behavior.
 
 ## Project Status
@@ -50,6 +51,9 @@ python3 congress_stock_tracker.py stats
 
 # Open the interactive terminal UI
 python3 congress_stock_tracker.py app
+
+# Ask the local prompt agent
+python3 congress_stock_tracker.py ask show Nancy Pelosi buys in 2024
 ```
 
 Running the script with no subcommand also launches the interactive app when Rich is available:
@@ -156,6 +160,7 @@ python3 congress_stock_tracker.py [-v] [--plain] <command>
 | `export` | Export filtered data as CSV or JSON. |
 | `update` | Fetch live data from configured public sources. |
 | `sync-members` | Sync the member roster from CapitolExposed. |
+| `ask` | Send a natural-language prompt to the local agent, which routes to existing commands. |
 
 Global options:
 
@@ -185,6 +190,23 @@ Example display:
 Menu  1 Member report  2 Search  3 Stats  4 Analysis
       5 Update  6 Sync  7 Export  8 Members  q Quit
 Choice [1]:
+```
+
+Choose `9` in the menu to send a prompt to the local agent. The agent prints the command it selected, then displays the result using the same tables and dashboards as the rest of the app.
+
+Example prompt:
+
+```text
+Ask the agent [show Nancy Pelosi buys in 2024]: fetch latest trades for Ro Khanna
+```
+
+Example plan:
+
+```text
+Agent plan
+Prompt: fetch latest trades for Ro Khanna
+Action: update
+Command: update --source capitolexposed --member "Ro Khanna"
 ```
 
 ### `init`
@@ -331,6 +353,42 @@ Date               Symbol   Company                Type   Amount           Membe
 30 December 2025   NVDA     NVIDIA Corporation -   BUY    $100,001-$250,000 Nancy Pelosi
 
 Showing 3 of 10 (use --offset to paginate)
+```
+
+### `ask`
+
+Routes a natural-language prompt to one of the existing app commands:
+
+```bash
+python3 congress_stock_tracker.py --plain ask show Nancy Pelosi buys in 2024 limit 2
+```
+
+Example output:
+
+```text
+Agent action: trades
+Routes to: trades --member "Nancy Pelosi" --year 2024 --type buy --limit 2
+Summary: Show member trades · member=Nancy Pelosi · year=2024 · trade type=buy
+
+Show member trades · member=Nancy Pelosi · year=2024 · trade type=buy (2 shown)
+Date               Symbol   Company                Type   Amount           Member
+----------------------------------------------------------------------------------------------------------
+20 December 2024   PANW     Palo Alto Networks,    BUY    $1,000,001-$5,000,000 Nancy Pelosi
+20 December 2024   NVDA     NVIDIA Corporation -   BUY    $500,001-$1,000,000 Nancy Pelosi
+
+Showing 2 of 10
+```
+
+Prompt examples:
+
+```text
+fetch latest trades for Ro Khanna
+show Nancy Pelosi buys in 2024
+search NVDA trades limit 10
+stats for 2024
+export Nancy Pelosi trades as json
+sync members
+show analysis
 ```
 
 ### `export`
