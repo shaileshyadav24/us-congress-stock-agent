@@ -203,6 +203,26 @@ class CongressStockTracker:
         rows = [dict(row) for row in cursor.fetchall()]
         conn.close()
         return rows
+
+    def find_member_names(self, query: str, limit: int = 25) -> List[str]:
+        """Return member names matching a partial or exact name query."""
+        if not query:
+            return []
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT name
+            FROM members
+            WHERE name = ? OR name LIKE ?
+            ORDER BY CASE WHEN name = ? THEN 0 ELSE 1 END, name
+            LIMIT ?
+            """,
+            (query, f"%{query}%", query, limit),
+        )
+        names = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        return names
     
     def add_trade(self, trade: StockTrade) -> bool:
         """Add a stock trade record"""
@@ -268,6 +288,8 @@ class CongressStockTracker:
         """Calculate and update yearly statistics"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
+
+        cursor.execute("DELETE FROM yearly_stats")
         
         # Get unique combinations of member_id and financial_year
         cursor.execute('''
@@ -311,6 +333,39 @@ class CongressStockTracker:
         
         conn.commit()
         conn.close()
+
+    def clear_trades(
+        self,
+        member: Optional[str] = None,
+        stock: Optional[str] = None,
+        all_trades: bool = False,
+    ) -> int:
+        """Delete trades by member, stock, or all and rebuild aggregate stats."""
+        conditions = []
+        params: List = []
+
+        if all_trades:
+            conditions.append("1=1")
+        else:
+            if member:
+                conditions.append("member_name LIKE ?")
+                params.append(f"%{member}%")
+            if stock:
+                conditions.append("UPPER(symbol) = ?")
+                params.append(stock.upper())
+
+        if not conditions:
+            raise ValueError("Specify member, stock, or all_trades=True")
+
+        where = " AND ".join(conditions)
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute(f"DELETE FROM trades WHERE {where}", params)
+        deleted = cursor.rowcount
+        conn.commit()
+        conn.close()
+        self.update_yearly_stats()
+        return deleted
     
     def get_member_trades_by_year(self, member_name: str, year: int) -> List[Dict]:
         """Get all trades for a member in a specific financial year"""
@@ -757,6 +812,73 @@ def _use_graphical(args) -> bool:
     return not getattr(args, "plain", False)
 
 
+def resync_trades(
+    tracker: CongressStockTracker,
+    member: Optional[str] = None,
+    stock: Optional[str] = None,
+    all_trades: bool = False,
+    sources: Optional[List[str]] = None,
+    pages: Optional[int] = None,
+    refresh_cache: bool = False,
+    sync_members: bool = True,
+    all_members: bool = False,
+) -> Dict:
+    """Clear selected trade data and fetch it again through the existing update pipeline."""
+    from data_fetcher import CongressDataFetcher
+
+    if sum(bool(x) for x in (member, stock, all_trades)) != 1:
+        raise ValueError("Choose exactly one resync target: member, stock, or all")
+
+    fetcher = CongressDataFetcher()
+    if pages:
+        fetcher.max_pages = pages
+
+    target_sources = sources or ["capitolexposed"]
+    if "all" in target_sources:
+        target_sources = list(CongressDataFetcher.SOURCES)
+
+    removed_cache = fetcher.clear_cache() if refresh_cache else 0
+    member_names = None
+    if member:
+        member_names = tracker.find_member_names(member) or [member]
+
+    deleted = tracker.clear_trades(member=member, stock=stock, all_trades=all_trades)
+    update_summary = fetcher.update_database(
+        tracker,
+        sources=target_sources,
+        member_names=member_names,
+        sync_members=sync_members,
+        traders_only_sync=not all_members,
+        force_roster_refresh=refresh_cache,
+    )
+
+    return {
+        "target": "all" if all_trades else ("stock" if stock else "member"),
+        "member_names": member_names or [],
+        "stock": stock,
+        "sources": target_sources,
+        "deleted": deleted,
+        "cache_removed": removed_cache,
+        "update": update_summary,
+    }
+
+
+def print_resync_summary(summary: Dict) -> None:
+    update = summary["update"]
+    target = summary["target"]
+    if target == "member":
+        target_detail = ", ".join(summary.get("member_names") or ["unknown member"])
+    elif target == "stock":
+        target_detail = summary.get("stock") or "unknown stock"
+    else:
+        target_detail = "all trades"
+    print(
+        f"✓ Resync complete for {target_detail} — deleted {summary['deleted']} existing trade(s), "
+        f"fetched {update['fetched']}, imported {update['imported']}, "
+        f"skipped {update['skipped']}, errors {update['errors']}"
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Congressional Stock Trading Tracker",
@@ -834,6 +956,38 @@ def main():
         help="Skip auto-syncing member roster before update",
     )
     update_parser.add_argument(
+        "--all-members",
+        action="store_true",
+        help="Sync full in-office roster (not just members with trades)",
+    )
+
+    resync_parser = subparsers.add_parser(
+        "resync",
+        help="Clear selected trade data and fetch it again",
+    )
+    resync_target = resync_parser.add_mutually_exclusive_group(required=True)
+    resync_target.add_argument("--member", help="Clear and resync trades for a member name")
+    resync_target.add_argument("--stock", help="Clear and resync trades for a stock ticker")
+    resync_target.add_argument("--all", action="store_true", help="Clear and resync all trades")
+    resync_parser.add_argument(
+        "--source",
+        action="append",
+        choices=["all", "opensecrets", "capitaltrades", "capitolexposed", "sec", "house", "senate"],
+        help="Data source(s) to resync from (repeatable)",
+    )
+    resync_parser.add_argument("--refresh", action="store_true", help="Clear cache before fetching")
+    resync_parser.add_argument(
+        "--pages",
+        type=int,
+        default=None,
+        help="Max API pages per source (default: CAPITOL_MAX_PAGES env or 5)",
+    )
+    resync_parser.add_argument(
+        "--no-sync-members",
+        action="store_true",
+        help="Skip auto-syncing member roster before resync",
+    )
+    resync_parser.add_argument(
         "--all-members",
         action="store_true",
         help="Sync full in-office roster (not just members with trades)",
@@ -1034,6 +1188,48 @@ def main():
                 f"skipped {summary['skipped']}, errors {summary['errors']}"
             )
 
+    elif args.command == "resync":
+        sources = args.source or ["capitolexposed"]
+        if _use_graphical(args):
+            from cli_display import GraphicalDisplay
+
+            ui = GraphicalDisplay()
+            target = "all trades" if args.all else (args.stock or args.member)
+            ui.info_panel("Resync", {"Target": target, "Sources": ", ".join(sources)})
+            with ui.progress_task("Resyncing") as progress:
+                task = progress.add_task("Clearing and fetching...", total=None)
+                summary = resync_trades(
+                    tracker,
+                    member=args.member,
+                    stock=args.stock,
+                    all_trades=args.all,
+                    sources=sources,
+                    pages=args.pages,
+                    refresh_cache=args.refresh,
+                    sync_members=not args.no_sync_members,
+                    all_members=args.all_members,
+                )
+                progress.update(task, completed=True)
+            update = summary["update"]
+            ui.success(
+                f"Deleted {summary['deleted']} · fetched {update['fetched']} · "
+                f"imported {update['imported']} · skipped {update['skipped']}"
+            )
+        else:
+            print("Clearing matching trades and fetching fresh data...")
+            summary = resync_trades(
+                tracker,
+                member=args.member,
+                stock=args.stock,
+                all_trades=args.all,
+                sources=sources,
+                pages=args.pages,
+                refresh_cache=args.refresh,
+                sync_members=not args.no_sync_members,
+                all_members=args.all_members,
+            )
+            print_resync_summary(summary)
+
     elif args.command == "sync-members":
         from data_fetcher import CongressDataFetcher
 
@@ -1100,7 +1296,11 @@ def main():
                 print(f"  - {example}")
             return
 
-        kind, result = execute_agent_plan(plan, tracker)
+        try:
+            kind, result = execute_agent_plan(plan, tracker)
+        except ValueError as e:
+            print(f"Agent error: {e}")
+            raise SystemExit(1) from e
 
         if kind == "stats":
             if _use_graphical(args):
@@ -1147,6 +1347,8 @@ def main():
                 f"✓ Member sync complete — roster: {result['total_roster']}, "
                 f"added: {result['added']}, updated: {result['updated']}, skipped: {result['skipped']}"
             )
+        elif kind == "resync":
+            print_resync_summary(result)
         elif kind == "update":
             print(
                 f"✓ Update complete — members: +{result.get('members_added', 0)} new, "

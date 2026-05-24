@@ -48,6 +48,26 @@ class CongressPromptAgent:
                 command="ask --help",
             )
 
+        if any(word in lowered for word in ("resync", "re-sync", "clear db", "clear database", "clear and")):
+            sources = self._extract_sources(lowered)
+            all_trades = not member and not stock
+            confirmed = bool(re.search(r"\b(confirm|confirmed|yes|proceed)\b", lowered))
+            return AgentPlan(
+                action="resync",
+                summary=self._summary("Clear and resync data", member=member, stock=stock, all=all_trades),
+                command=self._command_preview(
+                    "resync", sources=sources, member=member, stock=stock, all_trades=all_trades
+                ),
+                args={
+                    "sources": sources,
+                    "member": member,
+                    "stock": stock,
+                    "all_trades": all_trades,
+                    "pages": self._extract_pages(lowered),
+                    "confirmed": confirmed,
+                },
+            )
+
         if any(word in lowered for word in ("sync", "roster", "members")) and "trade" not in lowered:
             return AgentPlan(
                 action="sync",
@@ -153,6 +173,8 @@ class CongressPromptAgent:
             "search NVDA trades limit 10",
             "stats for 2024",
             "export Nancy Pelosi trades as json",
+            "resync all data",
+            "clear and resync stock NVDA",
             "sync members",
             "show analysis",
         ]
@@ -215,9 +237,9 @@ class CongressPromptAgent:
 
     @staticmethod
     def _extract_stock(text: str) -> Optional[str]:
-        match = re.search(r"\b(?:ticker|symbol|stock)\s+([A-Z]{1,5})\b", text)
+        match = re.search(r"\b(?:ticker|symbol|stock)\s+([A-Z]{1,5})\b", text, flags=re.IGNORECASE)
         if match:
-            return match.group(1)
+            return match.group(1).upper()
         tokens = re.findall(r"\b[A-Z]{2,5}\b", text)
         ignored = {"USA", "US", "SEC", "JSON", "CSV", "PTR", "API"}
         for token in tokens:
@@ -263,9 +285,10 @@ class CongressPromptAgent:
             "sec": "sec",
             "house": "house",
             "senate": "senate",
-            "all": "all",
         }
         sources = [source for alias, source in source_aliases.items() if alias in lowered]
+        if re.search(r"\b(all sources|source all|sources all)\b", lowered):
+            sources.append("all")
         if "all" in sources:
             return ["all"]
         return sources or ["capitolexposed"]
@@ -322,6 +345,9 @@ class CongressPromptAgent:
             if key == "sources":
                 for source in value:
                     pieces.extend(["--source", source])
+                continue
+            if key == "all_trades" and value:
+                pieces.append("--all")
                 continue
             flag = mapping.get(key)
             if flag:
@@ -387,7 +413,7 @@ def execute_agent_plan(plan: AgentPlan, tracker, fetcher=None) -> Tuple[str, obj
             "chamber": tools.get_trading_by_chamber(),
         }
 
-    if plan.action in {"update", "sync"}:
+    if plan.action in {"update", "sync", "resync"}:
         if fetcher is None:
             from data_fetcher import CongressDataFetcher
 
@@ -396,6 +422,23 @@ def execute_agent_plan(plan: AgentPlan, tracker, fetcher=None) -> Tuple[str, obj
         if plan.action == "sync":
             return "sync", fetcher.sync_members_from_roster(
                 tracker, traders_only=plan.args.get("traders_only", True)
+            )
+
+        if plan.action == "resync":
+            from congress_stock_tracker import resync_trades
+
+            if not plan.args.get("confirmed"):
+                raise ValueError(
+                    "Resync clears existing trade rows first. Add 'confirm' to the prompt, "
+                    "or use the dedicated resync command/app menu option."
+                )
+            return "resync", resync_trades(
+                tracker,
+                member=plan.args.get("member"),
+                stock=plan.args.get("stock"),
+                all_trades=plan.args.get("all_trades", False),
+                sources=plan.args.get("sources"),
+                pages=plan.args.get("pages"),
             )
 
         if plan.args.get("pages"):

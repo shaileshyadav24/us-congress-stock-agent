@@ -54,6 +54,9 @@ python3 congress_stock_tracker.py app
 
 # Ask the local prompt agent
 python3 congress_stock_tracker.py ask show Sample Member A buys in 2024
+
+# Clear and fetch fresh data for one target
+python3 congress_stock_tracker.py resync --member "Sample Member A"
 ```
 
 Running the script with no subcommand also launches the interactive app when Rich is available:
@@ -125,6 +128,21 @@ python3 congress_stock_tracker.py update --source all
 
 By default, `update` syncs member data before importing trades. Use `--no-sync-members` to skip that step.
 
+### Clear and Resync Data
+
+```bash
+# Clear and resync one member
+python3 congress_stock_tracker.py resync --member "Sample Member A"
+
+# Clear and resync one stock symbol
+python3 congress_stock_tracker.py resync --stock NVDA --pages 2
+
+# Clear and resync all trade rows
+python3 congress_stock_tracker.py resync --all --refresh
+```
+
+`resync` deletes matching trade rows, rebuilds yearly stats, then fetches fresh data through the same source pipeline used by `update`.
+
 ### Sync Members
 
 ```bash
@@ -159,6 +177,7 @@ python3 congress_stock_tracker.py [-v] [--plain] <command>
 | `search` | Search member names, companies, symbols, trade types, years, and date ranges. |
 | `export` | Export filtered data as CSV or JSON. |
 | `update` | Fetch live data from configured public sources. |
+| `resync` | Clear matching trade rows and fetch them again by member, stock, or all trades. |
 | `sync-members` | Sync the member roster from CapitolExposed. |
 | `ask` | Send a natural-language prompt to the local agent, which routes to existing commands. |
 
@@ -187,12 +206,14 @@ Example display:
 ║        CLI · Live PTR data · Terminal charts              ║
 ╚════════════════════════════════════════════════════════════╝
 
-Menu  1 Member report  2 Search  3 Stats  4 Analysis
-      5 Update  6 Sync  7 Export  8 Members  q Quit
+Menu  1 Member report  2 Search  3 Stats  4 Analysis  5 Update
+      6 Sync  7 Export  8 Members  9 AI prompt  10 Resync  q Quit
 Choice [1]:
 ```
 
 Choose `9` in the menu to send a prompt to the local agent. The agent prints the command it selected, then displays the result using the same tables and dashboards as the rest of the app.
+
+Choose `10` to clear matching trade rows and fetch fresh data by member, stock, or all trades.
 
 Example prompt:
 
@@ -387,9 +408,12 @@ show Sample Member A buys in 2024
 search NVDA trades limit 10
 stats for 2024
 export Sample Member A trades as json
+confirm clear and resync stock NVDA
 sync members
 show analysis
 ```
+
+Prompt-agent resyncs require the word `confirm` because they delete matching trade rows before fetching fresh data.
 
 ### `export`
 
@@ -426,6 +450,29 @@ Example output:
 ```text
 Updating from source(s): capitolexposed...
 ✓ Update complete — members: +0 new, 1 updated, 0 auto-added from trades | trades: fetched 40, imported 0, skipped 40, errors 0
+```
+
+### `resync`
+
+Clears matching trade rows, rebuilds yearly stats, and fetches fresh data:
+
+```bash
+python3 congress_stock_tracker.py resync --stock NVDA --pages 2
+```
+
+Example output:
+
+```text
+Clearing matching trades and fetching fresh data...
+✓ Resync complete for NVDA — deleted 10 existing trade(s), fetched 212, imported 10, skipped 202, errors 0
+```
+
+Targets are mutually exclusive:
+
+```bash
+python3 congress_stock_tracker.py resync --member "Sample Member A"
+python3 congress_stock_tracker.py resync --stock NVDA
+python3 congress_stock_tracker.py resync --all
 ```
 
 ### `sync-members`

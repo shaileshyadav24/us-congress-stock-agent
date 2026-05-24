@@ -367,11 +367,12 @@ def run_interactive_app(tracker) -> None:
             "[bold cyan]Menu[/]  "
             "[dim]1[/] Member report  [dim]2[/] Search  [dim]3[/] Stats  "
             "[dim]4[/] Analysis  [dim]5[/] Update  [dim]6[/] Sync  "
-            "[dim]7[/] Export  [dim]8[/] Members  [dim]9[/] AI prompt  [dim]q[/] Quit"
+            "[dim]7[/] Export  [dim]8[/] Members  [dim]9[/] AI prompt  "
+            "[dim]10[/] Resync  [dim]q[/] Quit"
         )
         choice = Prompt.ask(
             "Choice",
-            choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "q"],
+            choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "q"],
             default="1",
             show_choices=False,
         )
@@ -483,7 +484,7 @@ def run_interactive_app(tracker) -> None:
                     ui.analysis_dashboard(tools)
                     continue
 
-                if plan.action in {"update", "sync"}:
+                if plan.action in {"update", "sync", "resync"}:
                     with ui.progress_task(f"{plan.action.title()}...") as progress:
                         task = progress.add_task(plan.summary, total=None)
                         kind, result = execute_agent_plan(plan, tracker, fetcher=fetcher)
@@ -492,6 +493,12 @@ def run_interactive_app(tracker) -> None:
                         ui.success(
                             f"Fetched {result['fetched']} · imported {result['imported']} · "
                             f"skipped {result['skipped']} · errors {result['errors']}"
+                        )
+                    elif kind == "resync":
+                        update = result["update"]
+                        ui.success(
+                            f"Deleted {result['deleted']} · fetched {update['fetched']} · "
+                            f"imported {update['imported']} · skipped {update['skipped']}"
                         )
                     else:
                         ui.success(f"Added {result['added']}, updated {result['updated']}")
@@ -505,6 +512,38 @@ def run_interactive_app(tracker) -> None:
                     ui.trades_table(rows, title=plan.summary, total=total)
                 elif kind == "export":
                     ui.success(f"Exported {result} rows")
+
+            elif choice == "10":
+                from congress_stock_tracker import resync_trades
+
+                target = Prompt.ask("Target", choices=["member", "stock", "all"], default="member")
+                member = stock = None
+                all_trades = target == "all"
+                if target == "member":
+                    member = Prompt.ask("Member name")
+                elif target == "stock":
+                    stock = Prompt.ask("Stock ticker").upper()
+                pages = IntPrompt.ask("API pages", default=3)
+                refresh = Confirm.ask("Clear cache first?", default=False)
+                if not Confirm.ask("Clear matching trades and fetch again?", default=False):
+                    ui.warning("Resync cancelled")
+                    continue
+                with ui.progress_task("Resyncing...") as progress:
+                    task = progress.add_task("Clearing and fetching fresh data...", total=None)
+                    summary = resync_trades(
+                        tracker,
+                        member=member,
+                        stock=stock,
+                        all_trades=all_trades,
+                        pages=pages,
+                        refresh_cache=refresh,
+                    )
+                    progress.update(task, completed=True)
+                update = summary["update"]
+                ui.success(
+                    f"Deleted {summary['deleted']} · fetched {update['fetched']} · "
+                    f"imported {update['imported']} · skipped {update['skipped']}"
+                )
 
         except KeyboardInterrupt:
             ui.console.print()
